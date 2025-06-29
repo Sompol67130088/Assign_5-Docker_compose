@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Assign #4 Docker Compose</title>
+  <style>
+    html { color-scheme: light dark; }
+    body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; }
+    input, button { margin: 5px; }
+    table { width: 100%; margin-top: 1em; border-collapse: collapse; }
+    th, td { border: 1px solid #999; padding: 0.5em; text-align: left; }
+    img.preview { max-width: 100px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Assign #4 Docker Compose</h1>
+  <p>Build Docker Compose</p>
+
+  <p>Builder information:<br>
+  1. Name : Sompol Chimsang<br>
+  Student ID: 67130088</p>
+  <img src="sompolc.png" alt="img" width="200" height="200">
+
+  <p><br>
+  2. Name : Aphichat Rungruang<br>
+  Student ID: 67130226</p>
+  <img src="apichartr.png" alt="img" width="200" height="200">
+
+  <h2>จัดการข้อมูลรถยนต์</h2>
+  <form id="carForm">
+    <input type="hidden" id="carId"> <input type="text" id="brand" placeholder="ยี่ห้อ" required>
+    <input type="text" id="model" placeholder="รุ่น" required>
+    <input type="number" id="year" placeholder="ปีที่เริ่มจำหน่าย" required>
+    <input type="file" id="imageUpload" accept="image/*"> <img id="imagePreview" class="preview" src="" alt="Preview" style="display:none;">
+    <button type="submit" id="submitButton">เพิ่ม</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ยี่ห้อ</th><th>รุ่น</th><th>ปี</th><th>ภาพ</th><th>การจัดการ</th>
+      </tr>
+    </thead>
+    <tbody id="carTable"></tbody>
+  </table>
+
+  <p><em>Best regards,</em></p>
+  <p><em>My team</em></p>
+
+  <script>
+    let editCarId = null; // Store the ID of the car being edited
+
+    document.getElementById('imageUpload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          document.getElementById('imagePreview').src = event.target.result;
+          document.getElementById('imagePreview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      } else {
+        document.getElementById('imagePreview').style.display = 'none';
+      }
+    });
+
+    async function fetchCars() {
+      try {
+        const response = await fetch('/api/cars');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const cars = await response.json();
+        renderCars(cars);
+      } catch (error) {
+        console.error('Error fetching cars:', error);
+      }
+    }
+
+    function renderCars(cars) {
+      const table = document.getElementById('carTable');
+      table.innerHTML = '';
+      cars.forEach(car => {
+        table.innerHTML += `
+          <tr>
+            <td>${car.brand}</td>
+            <td>${car.model}</td>
+            <td>${car.year}</td>
+            <td><img src="${car.image_url}" width="100"></td>
+            <td>
+              <button onclick="editCar('${car.id}')">แก้ไข</button>
+              <button onclick="deleteCar('${car.id}')">ลบ</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    document.getElementById('carForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const brand = document.getElementById('brand').value;
+      const model = document.getElementById('model').value;
+      const year = document.getElementById('year').value;
+      const imageFile = document.getElementById('imageUpload').files[0];
+      const carId = document.getElementById('carId').value;
+
+      const formData = new FormData();
+      formData.append('brand', brand);
+      formData.append('model', model);
+      formData.append('year', year);
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
+
+      let url = '/api/cars';
+      let method = 'POST';
+
+      if (carId) { // If editing an existing car
+        url = `/api/cars/${carId}`;
+        method = 'PUT';
+      } else if (!imageFile) {
+        alert('กรุณาอัปโหลดรูปภาพก่อน');
+        return;
+      }
+
+      try {
+        const response = await fetch(url, {
+          method: method,
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        this.reset();
+        document.getElementById('imagePreview').style.display = 'none';
+        document.getElementById('carId').value = '';
+        document.getElementById('submitButton').textContent = 'เพิ่ม';
+        fetchCars();
+      } catch (error) {
+        console.error('Error submitting car data:', error);
+        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลรถยนต์');
+      }
+    });
+
+    async function editCar(id) {
+      try {
+        const response = await fetch(`/api/cars/${id}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const car = await response.json();
+        document.getElementById('carId').value = car.id;
+        document.getElementById('brand').value = car.brand;
+        document.getElementById('model').value = car.model;
+        document.getElementById('year').value = car.year;
+        document.getElementById('imagePreview').src = car.image_url;
+        document.getElementById('imagePreview').style.display = 'block';
+        document.getElementById('submitButton').textContent = 'บันทึกการแก้ไข';
+      } catch (error) {
+        console.error('Error fetching car for edit:', error);
+      }
+    }
+
+    async function deleteCar(id) {
+      if (!confirm('คุณแน่ใจหรือไม่ที่จะลบข้อมูลนี้?')) {
+        return;
+      }
+      try {
+        const response = await fetch(`/api/cars/${id}`, {
+          method: 'DELETE'
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        fetchCars();
+      } catch (error) {
+        console.error('Error deleting car:', error);
+        alert('เกิดข้อผิดพลาดในการลบข้อมูลรถยนต์');
+      }
+    }
+
+    // Initial load
+    fetchCars();
+  </script>
+</body>
+</html>
